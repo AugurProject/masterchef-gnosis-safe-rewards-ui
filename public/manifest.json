@@ -1,7 +1,7 @@
 {
-  "short_name": "Safe App",
-  "name": "Gnosis Safe App Starter",
-  "description": "Describe your Safe App here",
+  "short_name": "Rewards UI",
+  "name": "Gnosis Safe MasterChef Rewards UI",
+  "description": "MasterChef Rewards UI",
   "iconPath": "logo.svg",
   "icons": [
     {
