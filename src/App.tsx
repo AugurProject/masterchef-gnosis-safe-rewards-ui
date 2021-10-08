@@ -3,12 +3,15 @@ import styled from 'styled-components'
 import { Button, TextField, Title, Icon } from '@gnosis.pm/safe-react-components'
 import { useSafeAppsSDK } from '@gnosis.pm/safe-apps-react-sdk'
 import MasterChefABI from './MasterChef.json';
+import WMaticABI from './WMatic.json';
 // @ts-ignore
 import Web3 from 'web3';
+import { BigNumber } from "ethers";
 
 const POLYGON_NETWORK_RPC = "https://polygon-rpc.com"
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-
+const WMATIC_TOKEN_ADDRESS = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
+const MASTERCHEF_CONTRACT_ADDRESS = "0x387665474564BD2A72267ad32009Ce154A4a1D07";
 
 const Container = styled.div`
   margin: 1rem;
@@ -46,9 +49,8 @@ const Card = styled.div`
 
 const SafeApp = (): React.ReactElement => {
   const { sdk, safe } = useSafeAppsSDK()
-  const [rewardsContract, setRewardsContract] = useState<string>(ZERO_ADDRESS);
+  const [rewardsContract, setRewardsContract] = useState<string>(MASTERCHEF_CONTRACT_ADDRESS);
   const [ammFactory, setAmmFactory] = useState<string>('');
-  const [withdrawAmount, setWithdrawAmount] = useState<string>('');
   const [marketFactory, setMarketFactory] = useState<string>('');
   const [rewardsPerMarket, setRewardsPerMarket] = useState<string>('');
   const [rewardDaysPerMarket, setRewardDaysPerMarket] = useState<string>('');
@@ -59,9 +61,9 @@ const SafeApp = (): React.ReactElement => {
     && web3.utils.isAddress(rewardsContract)
 
   const contract = new web3.eth.Contract(MasterChefABI, validRewardsAddress ? rewardsContract : safe);
+  const wMaticContract = new web3.eth.Contract(WMaticABI, WMATIC_TOKEN_ADDRESS);
 
   const trustAMMFactoryTx = useCallback(async () => {
-    console.log('contract', contract);
     try {
       const { safeTxHash } = await sdk.txs.send({
         txs: [
@@ -100,13 +102,14 @@ const SafeApp = (): React.ReactElement => {
   }, [contract.methods, rewardsContract, ammFactory, sdk])
 
   const withdrawRewardsTx = useCallback(async () => {
+    const rewardTokenBalance = await wMaticContract.methods.balanceOf(rewardsContract).call();
     try {
       const { safeTxHash } = await sdk.txs.send({
         txs: [
           {
             to: rewardsContract,
             value: '0',
-            data: contract.methods.withdrawRewards(withdrawAmount).encodeABI(),
+            data: contract.methods.withdrawRewards(rewardTokenBalance).encodeABI(),
           },
         ],
       })
@@ -116,16 +119,19 @@ const SafeApp = (): React.ReactElement => {
     } catch (e) {
       console.error(e)
     }
-  }, [contract.methods, rewardsContract, withdrawAmount, sdk])
+  }, [contract.methods, rewardsContract, sdk])
 
   const addRewardsTx = useCallback(async () => {
+    const rewardsPerPeriod = BigNumber.from(10).pow(18).mul(rewardsPerMarket);
+    const rewardPeriods = BigNumber.from(rewardDaysPerMarket);
+    const rewardEarlyDepositBonus= BigNumber.from(10).pow(18).mul(earlyDepositBonusRewards);
     try {
       const { safeTxHash } = await sdk.txs.send({
         txs: [
           {
             to: rewardsContract,
             value: '0',
-            data: contract.methods.addRewards(marketFactory, rewardsPerMarket, rewardDaysPerMarket, earlyDepositBonusRewards).encodeABI(),
+            data: contract.methods.addRewards(marketFactory, rewardsPerPeriod, rewardPeriods, rewardEarlyDepositBonus).encodeABI(),
           },
         ],
       })
@@ -183,12 +189,6 @@ const SafeApp = (): React.ReactElement => {
 
         <Rows>
           <Card>
-            <TextField
-              id="withdrawRewards"
-              label="_amount (uint256)"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-            />
             <Button size="lg" color="primary" onClick={withdrawRewardsTx}>withdrawRewards</Button>
           </Card>
           <Card>
